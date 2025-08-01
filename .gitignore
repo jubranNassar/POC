@@ -1,0 +1,36 @@
+# Spacelift Worker Pool Certificates and Secrets
+certs/
+*.key
+*.csr
+*.config
+*workerpool.config
+
+# Terraform files
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+.terraform/
+.terraform.lock.hcl
+tfplan
+
+# LocalStack data
+localstack-data/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/

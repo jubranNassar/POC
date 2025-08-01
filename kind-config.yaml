@@ -1,0 +1,34 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: spacelift-poc
+nodes:
+- role: control-plane
+  extraPortMappings:
+  # Port mappings for potential web interfaces or services
+  - containerPort: 80
+    hostPort: 8080
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 8443
+    protocol: TCP
+  # Additional port for potential Spacelift worker pool services
+  - containerPort: 8000
+    hostPort: 8000
+    protocol: TCP
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "spacelift.io/role=worker-pool"
+  - |
+    kind: ClusterConfiguration
+    metadata:
+      name: config
+    apiServer:
+      extraArgs:
+        enable-admission-plugins: NodeRestriction,MutatingAdmissionWebhook,ValidatingAdmissionWebhook
+# Optional: Add worker nodes if we need more capacity later
+# - role: worker
+#   labels:
+#     spacelift.io/role: worker-pool
