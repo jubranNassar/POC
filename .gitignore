@@ -5,6 +5,9 @@ certs/
 *.config
 *workerpool.config
 
+# Configuration files with sensitive data
+.spacelift-poc-config
+
 # Terraform files
 *.tfstate
 *.tfstate.*

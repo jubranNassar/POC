@@ -105,8 +105,9 @@ main() {
             fi
             
             if [ -d "spacelift-config/.terraform" ]; then
-                rm -rf spacelift-config/.terraform*
-                rm -f spacelift-config/tfplan
+                # TODO: run terraform destroy
+                # rm -rf spacelift-config/.terraform*
+                # rm -f spacelift-config/tfplan
                 print_success "Terraform files cleaned up"
             fi
         else

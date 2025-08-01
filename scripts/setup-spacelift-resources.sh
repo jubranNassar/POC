@@ -47,6 +47,43 @@ check_command() {
     fi
 }
 
+# Configuration file for storing account settings
+CONFIG_FILE=".spacelift-poc-config"
+
+# Function to get or prompt for Spacelift account alias
+get_account_alias() {
+    local account_alias=""
+    
+    # Try to read from config file first
+    if [ -f "$CONFIG_FILE" ]; then
+        account_alias=$(grep "^SPACELIFT_ACCOUNT_ALIAS=" "$CONFIG_FILE" 2>/dev/null | cut -d= -f2-)
+        if [ -n "$account_alias" ]; then
+            print_status "Using saved account alias: $account_alias"
+            export SPACELIFT_ACCOUNT_ALIAS="$account_alias"
+            return 0
+        fi
+    fi
+    
+    # Prompt for account alias
+    echo ""
+    print_status "Spacelift account alias is required for authentication"
+    print_status "Your account alias is the subdomain in your Spacelift URL"
+    print_status "For example, if your URL is https://mycompany.app.spacelift.io/, your alias is 'mycompany'"
+    echo ""
+    read -p "Enter your Spacelift account alias: " account_alias
+    
+    if [ -z "$account_alias" ]; then
+        print_error "Account alias cannot be empty"
+        exit 1
+    fi
+    
+    # Save to config file
+    echo "SPACELIFT_ACCOUNT_ALIAS=$account_alias" > "$CONFIG_FILE"
+    print_success "Account alias saved to $CONFIG_FILE for future use"
+    
+    export SPACELIFT_ACCOUNT_ALIAS="$account_alias"
+}
+
 # Function to authenticate with Spacelift
 authenticate_spacelift() {
     print_status "Checking Spacelift authentication..."
@@ -58,7 +95,7 @@ authenticate_spacelift() {
         print_success "Already authenticated with profile: $current_profile"
         
         # Verify the authentication works
-        if spacectl account current >/dev/null 2>&1; then
+        if spacectl whoami >/dev/null 2>&1; then
             local account_name
             account_name=$(spacectl account current 2>/dev/null | grep "Name:" | cut -d: -f2 | xargs)
             print_success "Connected to Spacelift account: $account_name"
@@ -67,15 +104,18 @@ authenticate_spacelift() {
             print_warning "Authentication appears stale, re-authenticating..."
         fi
     fi
-    
+
     print_status "Starting Spacelift authentication..."
     print_status "This will open your browser for login"
-    
-    # Interactive login
-    spacectl profile login
-    
+
+    # Get account alias
+    get_account_alias
+
+    # Interactive login with account alias
+    spacectl profile login "$SPACELIFT_ACCOUNT_ALIAS"
+
     # Verify authentication worked
-    if spacectl account current >/dev/null 2>&1; then
+    if spacectl whoami >/dev/null 2>&1; then
         local account_name
         account_name=$(spacectl account current 2>/dev/null | grep "Name:" | cut -d: -f2 | xargs)
         print_success "Successfully authenticated to Spacelift account: $account_name"
@@ -106,27 +146,7 @@ validate_prerequisites() {
 # Function to setup Terraform environment for Spacelift
 setup_terraform_env() {
     print_status "Setting up Terraform environment for Spacelift..."
-    
-    # Get the spacectl configuration directory
-    local spacectl_config_dir
-    spacectl_config_dir=$(spacectl profile current 2>/dev/null | grep "Config file:" | cut -d: -f2 | xargs | xargs dirname)
-    
-    if [ -z "$spacectl_config_dir" ]; then
-        print_error "Could not determine spacectl config directory"
-        exit 1
-    fi
-    
-    # Export environment variables for Terraform Spacelift provider
-    # The Spacelift Terraform provider can use spacectl's stored credentials
-    export SPACELIFT_API_KEY_ENDPOINT=$(spacectl profile current 2>/dev/null | grep "Endpoint:" | cut -d: -f2- | xargs)
-    
-    if [ -z "$SPACELIFT_API_KEY_ENDPOINT" ]; then
-        print_error "Could not get Spacelift endpoint from spacectl"
-        exit 1
-    fi
-    
-    print_success "Terraform environment configured for Spacelift"
-    print_status "Using endpoint: $SPACELIFT_API_KEY_ENDPOINT"
+    export SPACELIFT_API_TOKEN=$(spacectl profile export-token)
 }
 
 # Function to initialize Terraform

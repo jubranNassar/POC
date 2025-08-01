@@ -154,34 +154,6 @@ EOF
     print_success "WorkerPool resource created successfully"
 }
 
-# Function to wait for workers to be ready
-wait_for_workers() {
-    local max_attempts=30
-    local attempt=1
-    
-    print_status "Waiting for worker pods to be ready..."
-    
-    while [ $attempt -le $max_attempts ]; do
-        local ready_workers
-        ready_workers=$(kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc -l app.kubernetes.io/name=spacelift-worker --no-headers 2>/dev/null | grep "Running" | wc -l || echo "0")
-        
-        if [ "$ready_workers" -gt 0 ]; then
-            print_success "Worker pods are ready! ($ready_workers running)"
-            kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc -l app.kubernetes.io/name=spacelift-worker
-            return 0
-        fi
-        
-        echo -n "."
-        sleep 2
-        ((attempt++))
-    done
-    
-    print_warning "Worker pods not ready after $((max_attempts * 2)) seconds"
-    print_status "Current pod status:"
-    kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc -l app.kubernetes.io/name=spacelift-worker || true
-    return 1
-}
-
 # Function to validate WorkerPool setup
 validate_setup() {
     print_status "Validating WorkerPool setup..."
@@ -242,9 +214,6 @@ main() {
     
     # Create WorkerPool resource
     create_workerpool
-    
-    # Wait for workers to be ready (optional)
-    wait_for_workers || print_warning "Continuing despite worker pods not being ready yet"
     
     # Validate setup
     if validate_setup; then
