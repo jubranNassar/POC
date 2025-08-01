@@ -1,68 +1,16 @@
 #!/bin/bash
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Source common library functions
+source "$(dirname "$0")/lib/common.sh"
 
-# Function to print colored output
-print_status() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-print_header() {
-    echo -e "\n${BLUE}================================${NC}"
-    echo -e "${BLUE}  Complete Worker Pool Setup${NC}"
-    echo -e "${BLUE}================================${NC}\n"
-}
-
-# Function to run a script and handle errors
-run_script() {
-    local script_path="$1"
-    local description="$2"
-    
-    print_status "$description"
-    
-    if [ ! -x "$script_path" ]; then
-        print_error "Script not found or not executable: $script_path"
-        exit 1
-    fi
-    
-    if "$script_path"; then
-        print_success "$description completed successfully"
-    else
-        print_error "$description failed"
-        exit 1
-    fi
-}
-
-# Function to show progress
-show_progress() {
-    local step="$1"
-    local total="$2"
-    local description="$3"
-    
-    echo -e "\n${BLUE}[Step $step/$total]${NC} $description"
+print_workerpool_header() {
+    print_header "Complete Worker Pool Setup"
 }
 
 # Main execution
 main() {
-    print_header
+    print_workerpool_header
     
     echo "This script will guide you through setting up a complete Spacelift worker pool:"
     echo "1. Generate certificates and CSR"

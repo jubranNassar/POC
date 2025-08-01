@@ -1,71 +1,13 @@
 #!/bin/bash
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Source common library functions
+source "$(dirname "$0")/lib/common.sh"
 
-# Function to print colored output
-print_status() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# Function to check if a command exists
-check_command() {
-    if ! command -v "$1" &> /dev/null; then
-        print_error "$1 is not installed. Please install $1 and try again."
-        echo "Installation guides:"
-        case "$1" in
-            "kind")
-                echo "  - macOS: brew install kind"
-                echo "  - Linux: https://kind.sigs.k8s.io/docs/user/quick-start/#installation"
-                echo "  - Windows: choco install kind"
-                ;;
-            "kubectl")
-                echo "  - macOS: brew install kubectl"
-                echo "  - Linux: https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/"
-                echo "  - Windows: choco install kubernetes-cli"
-                ;;
-        esac
-        exit 1
-    fi
-}
 
 # Function to wait for cluster to be ready
 wait_for_cluster() {
-    local max_attempts=30
-    local attempt=1
-    
-    print_status "Waiting for cluster to be ready..."
-    
-    while [ $attempt -le $max_attempts ]; do
-        if kubectl cluster-info --context kind-spacelift-poc >/dev/null 2>&1; then
-            print_success "Cluster is ready!"
-            return 0
-        fi
-        
-        echo -n "."
-        sleep 2
-        ((attempt++))
-    done
-    
-    print_error "Cluster failed to become ready after $((max_attempts * 2)) seconds"
-    return 1
+    wait_with_timeout "kubectl cluster-info --context kind-spacelift-poc >/dev/null 2>&1" 30 2 "cluster to be ready"
 }
 
 # Function to validate cluster
@@ -141,11 +83,7 @@ main() {
     print_success "All prerequisites are installed"
     
     # Check if Docker is running
-    if ! docker ps >/dev/null 2>&1; then
-        print_error "Docker daemon is not running. Please start Docker and try again."
-        exit 1
-    fi
-    print_success "Docker daemon is running"
+    check_docker_running
     
     # Check if cluster already exists
     if kind get clusters | grep -q "spacelift-poc"; then
@@ -188,7 +126,7 @@ main() {
 }
 
 # Handle script interruption
-trap 'print_error "Setup interrupted by user"; exit 1' INT TERM
+setup_interrupt_handler "Setup"
 
 # Run main function
 main "$@"

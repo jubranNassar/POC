@@ -1,37 +1,9 @@
 #!/bin/bash
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Source common library functions
+source "$(dirname "$0")/lib/common.sh"
 
-# Function to print colored output
-print_status() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# Function to check if a command exists
-check_command() {
-    if ! command -v "$1" &> /dev/null; then
-        print_error "$1 is not installed. Please install $1 and try again."
-        exit 1
-    fi
-}
 
 # Function to validate prerequisites
 validate_prerequisites() {
@@ -42,36 +14,14 @@ validate_prerequisites() {
     check_command "base64"
     
     # Check if Kind cluster is accessible
-    if ! kubectl cluster-info --context kind-spacelift-poc >/dev/null 2>&1; then
-        print_error "Kind cluster 'spacelift-poc' is not accessible"
-        print_error "Please run ./setup.sh to ensure the cluster is running"
-        exit 1
-    fi
+    check_kind_cluster
     
     # Check if Spacelift operator is installed
-    if ! kubectl get namespace spacelift-worker-controller-system --context kind-spacelift-poc >/dev/null 2>&1; then
-        print_error "Spacelift operator namespace not found"
-        print_error "Please run ./setup.sh to install the Spacelift operator"
-        exit 1
-    fi
+    check_spacelift_operator
     
     # Check if required files exist
-    if [ ! -f "certs/spacelift.key" ]; then
-        print_error "Private key not found: certs/spacelift.key"
-        print_error "Please run ./scripts/generate-worker-pool-certs.sh first"
-        exit 1
-    fi
-    
-    if [ ! -f "certs/spacelift-workerpool.config" ]; then
-        print_error "Worker pool config not found: certs/spacelift-workerpool.config"
-        echo ""
-        echo "Steps to get this file:"
-        echo "1. Go to your Spacelift account"
-        echo "2. Navigate to 'Worker pools'"
-        echo "3. Create a worker pool using certs/spacelift.csr"
-        echo "4. Download the configuration and save as certs/spacelift-workerpool.config"
-        exit 1
-    fi
+    require_file "certs/spacelift.key" "Please run ./scripts/generate-worker-pool-certs.sh first"
+    require_file "certs/spacelift-workerpool.config" "Steps to get this file:\n1. Go to your Spacelift account\n2. Navigate to 'Worker pools'\n3. Create a worker pool using certs/spacelift.csr\n4. Download the configuration and save as certs/spacelift-workerpool.config"
     
     print_success "All prerequisites validated"
 }
@@ -87,9 +37,7 @@ create_secret() {
     # Check if secret already exists
     if kubectl get secret spacelift-worker-pool-credentials -n spacelift-worker-controller-system --context kind-spacelift-poc >/dev/null 2>&1; then
         print_warning "Secret 'spacelift-worker-pool-credentials' already exists"
-        read -p "Do you want to recreate it? (y/N): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if confirm_action "Do you want to recreate it"; then
             kubectl delete secret spacelift-worker-pool-credentials -n spacelift-worker-controller-system --context kind-spacelift-poc
             print_status "Deleted existing secret"
         else
@@ -115,9 +63,7 @@ create_workerpool() {
     # Check if WorkerPool already exists
     if kubectl get workerpool spacelift-poc-pool -n spacelift-worker-controller-system --context kind-spacelift-poc >/dev/null 2>&1; then
         print_warning "WorkerPool 'spacelift-poc-pool' already exists"
-        read -p "Do you want to recreate it? (y/N): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if confirm_action "Do you want to recreate it"; then
             kubectl delete workerpool spacelift-poc-pool -n spacelift-worker-controller-system --context kind-spacelift-poc
             print_status "Deleted existing WorkerPool"
         else
@@ -228,7 +174,7 @@ main() {
 }
 
 # Handle script interruption
-trap 'print_error "WorkerPool setup interrupted by user"; exit 1' INT TERM
+setup_interrupt_handler "WorkerPool setup"
 
 # Run main function
 main "$@"

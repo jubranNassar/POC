@@ -1,51 +1,9 @@
 #!/bin/bash
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Source common library functions
+source "$(dirname "$0")/lib/common.sh"
 
-# Function to print colored output
-print_status() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# Function to check if a command exists
-check_command() {
-    if ! command -v "$1" &> /dev/null; then
-        print_error "$1 is not installed. Please install $1 and try again."
-        case "$1" in
-            "terraform")
-                echo "Installation guides:"
-                echo "  - macOS: brew install terraform"
-                echo "  - Linux: https://learn.hashicorp.com/tutorials/terraform/install-cli"
-                echo "  - Windows: choco install terraform"
-                ;;
-            "spacectl")
-                echo "Installation guides:"
-                echo "  - macOS: brew install spacelift-io/spacelift/spacectl"
-                echo "  - Linux: https://github.com/spacelift-io/spacectl#installation"
-                echo "  - Windows: https://github.com/spacelift-io/spacectl#installation"
-                ;;
-        esac
-        exit 1
-    fi
-}
 
 # Configuration file for storing account settings
 CONFIG_FILE=".spacelift-poc-config"
@@ -130,78 +88,72 @@ validate_prerequisites() {
     print_status "Validating prerequisites..."
     
     # Check required commands
-    check_command "terraform"
+    check_command "tofu"
     check_command "spacectl"
     
     # Check if CSR file exists
-    if [ ! -f "certs/spacelift.csr" ]; then
-        print_error "CSR file not found: certs/spacelift.csr"
-        print_error "Please run ./scripts/generate-worker-pool-certs.sh first"
-        exit 1
-    fi
+    require_file "certs/spacelift.csr" "Please run ./scripts/generate-worker-pool-certs.sh first"
     
     print_success "All prerequisites validated"
 }
 
-# Function to setup Terraform environment for Spacelift
-setup_terraform_env() {
-    print_status "Setting up Terraform environment for Spacelift..."
+# Function to setup Tofu environment for Spacelift
+setup_tofu_env() {
+    print_status "Setting up Tofu environment for Spacelift..."
     export SPACELIFT_API_TOKEN=$(spacectl profile export-token)
 }
 
-# Function to initialize Terraform
-init_terraform() {
-    print_status "Initializing Terraform..."
+# Function to initialize Tofu
+init_tofu() {
+    print_status "Initializing Tofu..."
     
     cd spacelift-config
     
     if [ ! -f ".terraform.lock.hcl" ]; then
-        terraform init
-        print_success "Terraform initialized"
+        tofu init
+        print_success "Tofu initialized"
     else
-        print_status "Terraform already initialized"
+        print_status "Tofu already initialized"
     fi
     
     cd ..
 }
 
-# Function to plan Terraform changes
-plan_terraform() {
-    print_status "Planning Terraform changes..."
+# Function to plan Tofu changes
+plan_tofu() {
+    print_status "Planning Tofu changes..."
     
     cd spacelift-config
     
-    terraform plan -out=tfplan
+    tofu plan -out=tfplan
     
     cd ..
     
-    print_success "Terraform plan completed"
+    print_success "Tofu plan completed"
     
     echo ""
-    read -p "Do you want to apply these changes? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_status "Terraform apply cancelled"
+    if ! confirm_action "Do you want to apply these changes"; then
+        print_status "Tofu apply cancelled"
         return 1
     fi
     
     return 0
 }
 
-# Function to apply Terraform changes
-apply_terraform() {
-    print_status "Applying Terraform changes..."
+# Function to apply Tofu changes
+apply_tofu() {
+    print_status "Applying Tofu changes..."
     
     cd spacelift-config
     
-    terraform apply tfplan
+    tofu apply tfplan
     
     # Save the worker pool config to file
-    terraform output -raw worker_pool_config > ../certs/spacelift-workerpool.config
+    tofu output -raw worker_pool_config > ../certs/spacelift-workerpool.config
     
     cd ..
     
-    print_success "Terraform apply completed"
+    print_success "Tofu apply completed"
     print_success "Worker pool configuration saved to certs/spacelift-workerpool.config"
 }
 
@@ -215,9 +167,9 @@ show_resources() {
     local space_id
     local context_id
     
-    worker_pool_id=$(terraform output -raw worker_pool_id 2>/dev/null || echo "N/A")
-    space_id=$(terraform output -raw space_id 2>/dev/null || echo "N/A")
-    context_id=$(terraform output -raw context_id 2>/dev/null || echo "N/A")
+    worker_pool_id=$(tofu output -raw worker_pool_id 2>/dev/null || echo "N/A")
+    space_id=$(tofu output -raw space_id 2>/dev/null || echo "N/A")
+    context_id=$(tofu output -raw context_id 2>/dev/null || echo "N/A")
     
     cd ..
     
@@ -243,9 +195,7 @@ show_resources() {
 # Function to destroy resources (cleanup)
 destroy_resources() {
     print_warning "This will destroy all Spacelift resources created by this configuration"
-    read -p "Are you sure you want to continue? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    if ! confirm_action "Are you sure you want to continue"; then
         print_status "Destroy cancelled"
         return 0
     fi
@@ -254,7 +204,7 @@ destroy_resources() {
     
     cd spacelift-config
     
-    terraform destroy -auto-approve
+    tofu destroy -auto-approve
     
     cd ..
     
@@ -286,27 +236,27 @@ main() {
             print_status "Setting up Spacelift resources..."
             validate_prerequisites
             authenticate_spacelift
-            setup_terraform_env
-            init_terraform
-            if plan_terraform; then
-                apply_terraform
+            setup_tofu_env
+            init_tofu
+            if plan_tofu; then
+                apply_tofu
                 show_resources
             fi
             ;;
         "destroy")
             validate_prerequisites
             authenticate_spacelift
-            setup_terraform_env
-            init_terraform
+            setup_tofu_env
+            init_tofu
             destroy_resources
             ;;
         "plan")
             validate_prerequisites
             authenticate_spacelift
-            setup_terraform_env
-            init_terraform
+            setup_tofu_env
+            init_tofu
             cd spacelift-config
-            terraform plan
+            tofu plan
             cd ..
             ;;
         "help"|"-h"|"--help")
@@ -321,7 +271,7 @@ main() {
 }
 
 # Handle script interruption
-trap 'print_error "Setup interrupted by user"; exit 1' INT TERM
+setup_interrupt_handler "Setup"
 
 # Run main function
 main "$@"

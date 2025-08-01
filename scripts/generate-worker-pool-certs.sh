@@ -1,55 +1,16 @@
 #!/bin/bash
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Source common library functions
+source "$(dirname "$0")/lib/common.sh"
 
-# Function to print colored output
-print_status() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# Function to check if a command exists
-check_command() {
-    if ! command -v "$1" &> /dev/null; then
-        print_error "$1 is not installed. Please install $1 and try again."
-        case "$1" in
-            "openssl")
-                echo "Installation guides:"
-                echo "  - macOS: Usually pre-installed, or brew install openssl"
-                echo "  - Linux: sudo apt-get install openssl (Ubuntu/Debian) or yum install openssl (RHEL/CentOS)"
-                echo "  - Windows: Use WSL or install OpenSSL for Windows"
-                ;;
-        esac
-        exit 1
-    fi
-}
 
 # Function to generate certificates
 generate_certificates() {
     local cert_dir="certs"
     
     # Create certs directory if it doesn't exist
-    if [ ! -d "$cert_dir" ]; then
-        mkdir -p "$cert_dir"
-        print_status "Created $cert_dir directory"
-    fi
+    create_secure_directory "$cert_dir" 755
     
     # Check if certificates already exist
     if [ -f "$cert_dir/spacelift.key" ] && [ -f "$cert_dir/spacelift.csr" ]; then
@@ -58,9 +19,7 @@ generate_certificates() {
         echo "  - $cert_dir/spacelift.key (private key)"
         echo "  - $cert_dir/spacelift.csr (certificate signing request)"
         echo ""
-        read -p "Do you want to regenerate them? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        if ! confirm_action "Do you want to regenerate them"; then
             print_status "Using existing certificates"
             return 0
         fi
@@ -124,7 +83,7 @@ main() {
 }
 
 # Handle script interruption
-trap 'print_error "Certificate generation interrupted by user"; exit 1' INT TERM
+setup_interrupt_handler "Certificate generation"
 
 # Run main function
 main "$@"

@@ -1,75 +1,38 @@
 #!/bin/bash
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Source common library functions
+source "$(dirname "$0")/lib/common.sh"
 
-# Function to print colored output
-print_status() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
 
-print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# Function to check if a command exists
-check_command() {
-    if ! command -v "$1" &> /dev/null; then
-        print_error "$1 is not installed. Please install $1 and try again."
-        case "$1" in
-            "helm")
-                echo "Installation guides:"
-                echo "  - macOS: brew install helm"
-                echo "  - Linux: https://helm.sh/docs/intro/install/"
-                echo "  - Windows: choco install kubernetes-helm"
-                ;;
-        esac
-        exit 1
+# Function to check if operator pods are ready
+check_operator_pods_ready() {
+    local ready_pods
+    ready_pods=$(kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc --no-headers 2>/dev/null | grep "Running" | wc -l || echo "0")
+    
+    if [ "$ready_pods" -gt 0 ]; then
+        local total_pods
+        total_pods=$(kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc --no-headers 2>/dev/null | wc -l || echo "0")
+        
+        if [ "$ready_pods" -eq "$total_pods" ] && [ "$ready_pods" -gt 0 ]; then
+            return 0
+        fi
     fi
+    return 1
 }
 
 # Function to wait for operator pods to be ready
 wait_for_operator_pods() {
-    local max_attempts=30
-    local attempt=1
-    
-    print_status "Waiting for Spacelift operator pods to be ready..."
-    
-    while [ $attempt -le $max_attempts ]; do
+    if wait_with_timeout "check_operator_pods_ready" 30 2 "Spacelift operator pods to be ready"; then
         local ready_pods
         ready_pods=$(kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc --no-headers 2>/dev/null | grep "Running" | wc -l || echo "0")
-        
-        if [ "$ready_pods" -gt 0 ]; then
-            local total_pods
-            total_pods=$(kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc --no-headers 2>/dev/null | wc -l || echo "0")
-            
-            if [ "$ready_pods" -eq "$total_pods" ] && [ "$ready_pods" -gt 0 ]; then
-                print_success "All operator pods are ready! ($ready_pods/$total_pods)"
-                return 0
-            fi
-        fi
-        
-        echo -n "."
-        sleep 2
-        ((attempt++))
-    done
-    
-    print_error "Operator pods failed to become ready after $((max_attempts * 2)) seconds"
-    kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc || true
-    return 1
+        local total_pods
+        total_pods=$(kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc --no-headers 2>/dev/null | wc -l || echo "0")
+        print_success "All operator pods are ready! ($ready_pods/$total_pods)"
+    else
+        kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc || true
+        return 1
+    fi
 }
 
 # Function to validate operator installation
@@ -140,12 +103,7 @@ main() {
     print_success "kubectl and helm are available"
     
     # Check if Kind cluster is running
-    if ! kubectl cluster-info --context kind-spacelift-poc >/dev/null 2>&1; then
-        print_error "Kind cluster 'spacelift-poc' is not running or accessible"
-        print_error "Please run ./setup.sh to start the cluster"
-        exit 1
-    fi
-    print_success "Kind cluster is accessible"
+    check_kind_cluster
     
     # Check if operator is already installed via Helm
     if helm list -n spacelift-worker-controller-system --kube-context kind-spacelift-poc | grep -q "spacelift-workerpool-controller"; then
@@ -193,7 +151,7 @@ main() {
 }
 
 # Handle script interruption
-trap 'print_error "Installation interrupted by user"; exit 1' INT TERM
+setup_interrupt_handler "Installation"
 
 # Run main function
 main "$@"
