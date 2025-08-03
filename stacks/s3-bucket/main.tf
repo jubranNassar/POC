@@ -17,6 +17,9 @@ provider "aws" {
   skip_credentials_validation = true
   skip_metadata_api_check     = true
   skip_requesting_account_id  = true
+  
+  # Force path-style requests for LocalStack compatibility
+  s3_use_path_style = true
 }
 
 # Create S3 bucket with random suffix for uniqueness

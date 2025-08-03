@@ -2,7 +2,7 @@
 resource "spacelift_stack" "s3_bucket" {
   name        = "s3-bucket-poc"
   description = "S3 bucket deployment to LocalStack for POC demonstration"
-  repository  = "local"
+  repository  = "POC"
   branch      = "main"
   
   # Point to the s3-bucket directory
