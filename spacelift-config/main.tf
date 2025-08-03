@@ -45,3 +45,8 @@ resource "spacelift_worker_pool" "poc_pool" {
   ]
 }
 
+output "worker_pool_config" {
+  value = spacelift_worker_pool.poc_pool.config
+  sensitive = true
+}
+

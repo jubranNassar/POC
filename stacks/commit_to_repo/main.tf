@@ -11,7 +11,7 @@ locals {
 resource "github_repository_file" "foo" {
   repository     = var.github_repository
   branch         = local.is_pr ? github_branch.this[0].branch : var.branch
-  file           = "${var.bucket_name}.tf"
+  file           = "stacks/s3-bucket/${var.bucket_name}.tf"
   commit_message = local.commit_message
   commit_author  = var.username
   commit_email   = var.user_login
