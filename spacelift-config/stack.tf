@@ -26,3 +26,17 @@ resource "spacelift_context_attachment" "s3_github_auth" {
   stack_id   = spacelift_stack.s3_bucket_management.id
   priority   = 0
 }
+
+# Attach AWS integration to the stack
+resource "spacelift_aws_integration_attachment" "s3_bucket_aws" {
+  integration_id = spacelift_aws_integration.localstack.id
+  stack_id       = spacelift_stack.s3_bucket_management.id
+  read           = true
+  write          = true
+}
+
+resource "spacelift_context_attachment" "s3_bucket_localstack" {
+  context_id = spacelift_context.localstack_config.id
+  stack_id   = spacelift_stack.s3_bucket_management.id
+  priority   = 0
+}

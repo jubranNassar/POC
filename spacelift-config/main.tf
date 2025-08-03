@@ -14,6 +14,18 @@ provider "spacelift" {
   # No additional configuration needed when using spacectl
 }
 
+resource "spacelift_space" "poc_space" {
+  name                = "POC Environment"
+  description         = "Space for POC testing and demonstrations"
+  inherit_entities    = false
+  parent_space_id     = "root"
+
+  labels = [
+    "environment:poc",
+    "purpose:testing"
+  ]
+}
+
 # Create a worker pool for the POC
 resource "spacelift_worker_pool" "poc_pool" {
   name        = "poc-local-k8s-pool"
@@ -31,172 +43,5 @@ resource "spacelift_worker_pool" "poc_pool" {
     "type:local",
     "platform:kubernetes"
   ]
-}
-
-resource "spacelift_space" "poc_space" {
-  name                = "POC Environment"
-  description         = "Space for POC testing and demonstrations"
-  inherit_entities    = false
-  parent_space_id     = "root"
-  
-  labels = [
-    "environment:poc",
-    "purpose:testing"
-  ]
-}
-
-# Create AWS integration for LocalStack with assume role
-resource "spacelift_aws_integration" "localstack" {
-  name                           = "localstack-integration"
-  role_arn                       = "arn:aws:iam::000000000000:role/SpaceliftAdminRole"
-  external_id                    = "spacelift"
-  generate_credentials_in_worker = true
-  space_id                       = spacelift_space.poc_space.id
-  
-  labels = [
-    "provider:aws",
-    "environment:local"
-  ]
-}
-
-# Create a context for LocalStack-specific configuration
-resource "spacelift_context" "localstack_config" {
-  name        = "localstack-configuration"
-  description = "LocalStack endpoint configuration for AWS services"
-  space_id    = spacelift_space.poc_space.id
-  
-  labels = [
-    "provider:aws",
-    "environment:local"
-  ]
-}
-
-# Add LocalStack endpoint configuration
-resource "spacelift_environment_variable" "aws_endpoint" {
-  context_id = spacelift_context.localstack_config.id
-  name       = "AWS_ENDPOINT_URL"
-  value      = "http://host.docker.internal:4566"
-  write_only = false
-}
-
-# Add specific STS endpoint for LocalStack
-resource "spacelift_environment_variable" "aws_sts_endpoint" {
-  context_id = spacelift_context.localstack_config.id
-  name       = "AWS_STS_ENDPOINT_URL"
-  value      = "http://host.docker.internal:4566"
-  write_only = false
-}
-
-# Add IAM endpoint for LocalStack
-resource "spacelift_environment_variable" "aws_iam_endpoint" {
-  context_id = spacelift_context.localstack_config.id
-  name       = "AWS_IAM_ENDPOINT_URL"
-  value      = "http://host.docker.internal:4566"
-  write_only = false
-}
-
-resource "spacelift_environment_variable" "aws_region" {
-  context_id = spacelift_context.localstack_config.id
-  name       = "AWS_DEFAULT_REGION"
-  value      = "us-east-1"
-  write_only = false
-}
-
-# Create a context for GitHub authentication
-resource "spacelift_context" "github_auth" {
-  name        = "github-auth"
-  description = "GitHub authentication for blueprint commit operations"
-  space_id    = spacelift_space.poc_space.id
-  
-  labels = [
-    "provider:github",
-    "purpose:authentication"
-  ]
-}
-
-# GitHub token environment variable (will need to be set manually)
-resource "spacelift_environment_variable" "github_token" {
-  context_id = spacelift_context.github_auth.id
-  name       = "TF_VAR_github_token"
-  value      = "PLACEHOLDER_SET_MANUALLY"
-  write_only = true
-}
-
-# GitHub organization environment variable
-resource "spacelift_environment_variable" "github_organization" {
-  context_id = spacelift_context.github_auth.id
-  name       = "TF_VAR_github_organization"
-  value      = "spacelift-solutions"
-  write_only = false
-}
-
-# GitHub repository environment variable
-resource "spacelift_environment_variable" "github_repository" {
-  context_id = spacelift_context.github_auth.id
-  name       = "TF_VAR_github_repository"
-  value      = "POC"
-  write_only = false
-}
-
-# Output the worker pool configuration file content
-output "worker_pool_config" {
-  description = "Worker pool configuration file content"
-  value       = spacelift_worker_pool.poc_pool.config
-  sensitive   = true
-}
-
-output "worker_pool_id" {
-  description = "The ID of the created worker pool"
-  value       = spacelift_worker_pool.poc_pool.id
-}
-
-output "space_id" {
-  description = "The ID of the POC space"
-  value       = spacelift_space.poc_space.id
-}
-
-output "aws_integration_id" {
-  description = "The ID of the LocalStack AWS integration"
-  value       = spacelift_aws_integration.localstack.id
-}
-
-output "context_id" {
-  description = "The ID of the LocalStack configuration context"
-  value       = spacelift_context.localstack_config.id
-}
-
-output "github_context_id" {
-  description = "The ID of the GitHub authentication context"
-  value       = spacelift_context.github_auth.id
-}
-
-output "no_pr_blueprint_id" {
-  description = "The ID of the no-PR S3 bucket blueprint"
-  value       = spacelift_blueprint.no_pr_blueprint.id
-}
-
-output "pr_blueprint_id" {
-  description = "The ID of the PR S3 bucket blueprint"
-  value       = spacelift_blueprint.pr_blueprint.id
-}
-
-# Blueprint configuration
-locals {
-  blueprint    = file("${path.module}/blueprint/blueprint.yaml")
-  blueprint_pr = file("${path.module}/blueprint/blueprint_pr.yaml")
-}
-
-resource "spacelift_blueprint" "no_pr_blueprint" {
-  name     = "Create S3 Bucket (no PR)"
-  space    = spacelift_space.poc_space.id
-  state    = "PUBLISHED"
-  template = local.blueprint
-}
-
-resource "spacelift_blueprint" "pr_blueprint" {
-  name     = "Create S3 Bucket (with PR)"
-  space    = spacelift_space.poc_space.id
-  state    = "PUBLISHED"
-  template = local.blueprint_pr
 }
 

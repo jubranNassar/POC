@@ -11,6 +11,7 @@ print_setup_header() {
     echo "• Kind cluster (Kubernetes)"
     echo "• Spacelift operator"
     echo "• Complete worker pool with AWS integration (ready to run stacks)"
+    echo "• S3 bucket blueprint for GitOps demonstrations"
     echo ""
 }
 
@@ -190,6 +191,15 @@ main() {
                 print_error "Spacelift operator install script not found or not executable"
                 exit 1
             fi
+            # Setup GitHub credentials for S3 bucket blueprints
+            print_status "Setting up GitHub credentials for S3 bucket blueprints..."
+            if [ -x "./scripts/setup-github-credentials.sh" ]; then
+                ./scripts/setup-github-credentials.sh
+            else
+                print_error "GitHub credentials setup script not found or not executable"
+                exit 1
+            fi
+            
             print_status "Setting up complete Spacelift worker pool..."
             if [ -x "./scripts/setup-complete-workerpool.sh" ]; then
                 ./scripts/setup-complete-workerpool.sh
@@ -247,6 +257,16 @@ main() {
     else
         print_error "Spacelift operator install script not found or not executable"
         print_error "Please ensure ./scripts/install-spacelift-operator.sh exists and is executable"
+        exit 1
+    fi
+    
+    # Setup GitHub credentials for S3 bucket blueprints
+    print_status "Setting up GitHub credentials for S3 bucket blueprints..."
+    if [ -x "./scripts/setup-github-credentials.sh" ]; then
+        ./scripts/setup-github-credentials.sh
+    else
+        print_error "GitHub credentials setup script not found or not executable"
+        print_error "Please ensure ./scripts/setup-github-credentials.sh exists and is executable"
         exit 1
     fi
     

@@ -42,8 +42,3 @@ resource "spacelift_aws_integration_attachment" "s3_bucket_aws" {
   read           = true
   write          = true
 }
-
-output "s3_stack_id" {
-  description = "The ID of the S3 bucket stack"
-  value       = spacelift_stack.s3_bucket.id
-}
