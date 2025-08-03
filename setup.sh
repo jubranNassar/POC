@@ -7,10 +7,10 @@ source "$(dirname "$0")/scripts/lib/common.sh"
 print_setup_header() {
     print_header "Complete Spacelift POC Setup"
     echo "This will set up a complete Spacelift POC environment:"
-    echo "• LocalStack (AWS services)"
+    echo "• LocalStack (AWS services) with IAM role"
     echo "• Kind cluster (Kubernetes)"
     echo "• Spacelift operator"
-    echo "• Complete worker pool (ready to run stacks)"
+    echo "• Complete worker pool with AWS integration (ready to run stacks)"
     echo ""
 }
 
@@ -92,12 +92,13 @@ show_next_steps() {
     echo "  - Installed via Helm in spacelift-worker-controller-system namespace"
     echo "  - Ready to manage WorkerPool resources"
     echo "  - CRDs: workerpools.workers.spacelift.io, workers.workers.spacelift.io"
+    echo "  - IMDS mock service deployed for AWS credential simulation"
     
     echo -e "\n${BLUE}✅ Spacelift Worker Pool:${NC}"
     echo "  - Worker pool created in your Spacelift account"
     echo "  - Local worker pods running in Kind cluster"
     echo "  - Ready to execute Spacelift runs locally"
-    echo "  - Configured with LocalStack AWS credentials"
+    echo "  - Configured with AWS integration using IAM assume role"
     
     echo -e "\n${BLUE}Next Steps:${NC}"
     echo "1. Create Spacelift stacks using the 'poc-local-k8s-pool' worker pool"
@@ -120,6 +121,7 @@ show_next_steps() {
     echo "    - Status: kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc"
     echo "    - Logs: kubectl logs -n spacelift-worker-controller-system --context kind-spacelift-poc -l app.kubernetes.io/name=spacelift-workerpool-controller"
     echo "    - CRDs: kubectl get crd --context kind-spacelift-poc | grep spacelift"
+    echo "    - IMDS Mock: kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc -l app=imds-mock"
     echo ""
     echo "  Spacelift Worker Pool:"
     echo "    - Workers: kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc -l app.kubernetes.io/name=spacelift-worker"
@@ -163,6 +165,16 @@ main() {
         sleep 5
         if validate_localstack; then
             print_success "LocalStack is already healthy and validated"
+            
+            # Setup LocalStack IAM role for Spacelift integration
+            print_status "Setting up LocalStack IAM role for Spacelift integration..."
+            if [ -x "./scripts/setup-localstack-iam.sh" ]; then
+                ./scripts/setup-localstack-iam.sh
+            else
+                print_error "LocalStack IAM setup script not found or not executable"
+                exit 1
+            fi
+            
             # Still run Kind setup and operator installation, but skip LocalStack setup
             print_status "Setting up Kind cluster..."
             if [ -x "./scripts/setup-kind-cluster.sh" ]; then
@@ -206,6 +218,15 @@ main() {
     else
         print_error "LocalStack validation failed"
         print_error "Check the logs with: docker-compose logs localstack"
+        exit 1
+    fi
+    
+    # Setup LocalStack IAM role for Spacelift integration
+    print_status "Setting up LocalStack IAM role for Spacelift integration..."
+    if [ -x "./scripts/setup-localstack-iam.sh" ]; then
+        ./scripts/setup-localstack-iam.sh
+    else
+        print_error "LocalStack IAM setup script not found or not executable"
         exit 1
     fi
     

@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: imds-mock
+  namespace: spacelift-worker-controller-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: imds-mock
+  template:
+    metadata:
+      labels:
+        app: imds-mock
+    spec:
+      containers:
+      - name: imds-mock
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: mock-responses
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: imds-nginx-config
+      - name: mock-responses
+        configMap:
+          name: imds-mock-responses
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: imds-mock
+  namespace: spacelift-worker-controller-system
+spec:
+  selector:
+    app: imds-mock
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: imds-nginx-config
+  namespace: spacelift-worker-controller-system
+data:
+  nginx.conf: |
+    events {
+        worker_connections 1024;
+    }
+    http {
+        server {
+            listen 80;
+            server_name _;
+            
+            # Handle IMDS token requests
+            location /latest/api/token {
+                add_header Content-Type text/plain;
+                return 200 'mock-token-12345';
+            }
+            
+            # Handle security credentials list
+            location /latest/meta-data/iam/security-credentials/ {
+                add_header Content-Type text/plain;
+                return 200 'SpaceliftAdminRole';
+            }
+            
+            # Handle specific role credentials
+            location /latest/meta-data/iam/security-credentials/SpaceliftAdminRole {
+                add_header Content-Type application/json;
+                return 200 '{
+                  "Code": "Success",
+                  "LastUpdated": "2025-08-01T16:49:13Z",
+                  "Type": "AWS-HMAC",
+                  "AccessKeyId": "test",
+                  "SecretAccessKey": "test",
+                  "Expiration": "2025-08-01T23:49:13Z"
+                }';
+            }
+            
+            # Handle region
+            location /latest/meta-data/placement/region {
+                add_header Content-Type text/plain;
+                return 200 'us-east-1';
+            }
+            
+            # Handle other meta-data requests
+            location /latest/meta-data/ {
+                add_header Content-Type text/plain;
+                return 200 'iam/';
+            }
+        }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: imds-mock-responses
+  namespace: spacelift-worker-controller-system
+data:
+  index.html: |
+    Mock EC2 Instance Metadata Service

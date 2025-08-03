@@ -60,6 +60,17 @@ create_secret() {
 create_workerpool() {
     print_status "Creating WorkerPool Kubernetes resource..."
     
+    # Get the IMDS service ClusterIP
+    local imds_service_ip
+    imds_service_ip=$(kubectl get service imds-mock -n spacelift-worker-controller-system --context kind-spacelift-poc -o jsonpath='{.spec.clusterIP}' 2>/dev/null || echo "")
+    
+    if [ -z "$imds_service_ip" ]; then
+        print_error "Could not get IMDS service ClusterIP. Make sure the IMDS mock is deployed."
+        return 1
+    fi
+    
+    print_status "Using IMDS service IP: $imds_service_ip"
+    
     # Check if WorkerPool already exists
     if kubectl get workerpool spacelift-poc-pool -n spacelift-worker-controller-system --context kind-spacelift-poc >/dev/null 2>&1; then
         print_warning "WorkerPool 'spacelift-poc-pool' already exists"
@@ -89,6 +100,58 @@ spec:
     secretKeyRef:
       name: spacelift-worker-pool-credentials
       key: privateKey
+  pod:
+    hostAliases:
+    - hostnames:
+      - 169.254.169.254
+      ip: $imds_service_ip
+    customInitContainers:
+    - name: setup-socket-directory
+      image: alpine:latest
+      command: ["/bin/sh", "-c", "mkdir -p /opt/spacelift/workspace/socket && chmod 777 /opt/spacelift/workspace/socket && echo 'Socket directory prepared'"]
+      volumeMounts:
+      - name: workspace
+        mountPath: /opt/spacelift/workspace
+    initContainer:
+      env:
+      - name: AWS_STS_ENDPOINT_URL
+        value: http://host.docker.internal:4566
+      - name: AWS_IAM_ENDPOINT_URL
+        value: http://host.docker.internal:4566
+      - name: AWS_ENDPOINT_URL
+        value: http://host.docker.internal:4566
+      - name: AWS_DEFAULT_REGION
+        value: us-east-1
+      - name: AWS_REGION
+        value: us-east-1
+      - name: AWS_EC2_METADATA_SERVICE_ENDPOINT
+        value: http://$imds_service_ip
+      - name: AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE
+        value: IPv4
+      securityContext:
+        privileged: true
+    grpcServerContainer:
+      env:
+      - name: AWS_DEFAULT_REGION
+        value: us-east-1
+      - name: AWS_REGION
+        value: us-east-1
+      - name: AWS_EC2_METADATA_SERVICE_ENDPOINT
+        value: http://$imds_service_ip
+      - name: AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE
+        value: IPv4
+      securityContext:
+        privileged: true
+    workerContainer:
+      env:
+      - name: AWS_DEFAULT_REGION
+        value: us-east-1
+      - name: AWS_REGION
+        value: us-east-1
+      - name: AWS_EC2_METADATA_SERVICE_ENDPOINT
+        value: http://$imds_service_ip
+      - name: AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE
+        value: IPv4
 EOF
     
     # Apply the WorkerPool

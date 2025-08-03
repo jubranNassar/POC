@@ -36,10 +36,15 @@ main() {
         print_success "No LocalStack containers are running"
     fi
     
-    # Clean up Spacelift operator (if Helm is available)
-    print_status "Cleaning up Spacelift operator..."
+    # Clean up Spacelift operator and IMDS mock (if Helm is available)
+    print_status "Cleaning up Spacelift operator and IMDS mock..."
     if command -v helm &> /dev/null && command -v kubectl &> /dev/null; then
         if kubectl cluster-info --context kind-spacelift-poc >/dev/null 2>&1; then
+            # Clean up IMDS mock resources
+            print_status "Cleaning up IMDS mock resources..."
+            kubectl delete -f k8s-imds-mock.yaml --context kind-spacelift-poc >/dev/null 2>&1 || true
+            print_success "IMDS mock resources cleaned up"
+            
             if helm list -n spacelift-worker-controller-system --kube-context kind-spacelift-poc | grep -q "spacelift-workerpool-controller"; then
                 print_status "Uninstalling Spacelift operator..."
                 helm uninstall spacelift-workerpool-controller -n spacelift-worker-controller-system --kube-context kind-spacelift-poc || true
@@ -79,7 +84,7 @@ main() {
                 ./scripts/setup-spacelift-resources.sh destroy
                 print_success "Terraform files cleaned up"
             fi
-                        
+
             if [ -d "certs" ]; then
                 rm -rf certs
                 print_success "Certificates directory removed"

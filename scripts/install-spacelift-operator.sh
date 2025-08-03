@@ -146,6 +146,16 @@ main() {
         exit 1
     fi
     
+    # Deploy IMDS mock for AWS credential simulation
+    print_status "Deploying IMDS mock for AWS credential simulation..."
+    if [ -x "$(dirname "$0")/deploy-imds-mock.sh" ]; then
+        "$(dirname "$0")/deploy-imds-mock.sh"
+    else
+        print_error "IMDS mock deployment script not found or not executable"
+        print_error "Please ensure ./scripts/deploy-imds-mock.sh exists and is executable"
+        exit 1
+    fi
+    
     # Show operator information
     show_operator_info
 }
