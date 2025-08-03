@@ -31,28 +31,44 @@ wait_for_imds_mock() {
 validate_imds_mock() {
     print_status "Validating IMDS mock functionality..."
     
-    # Get the pod name
-    local pod_name
-    pod_name=$(kubectl get pods -n spacelift-worker-controller-system --context kind-spacelift-poc -l app=imds-mock -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    # Get the IMDS service ClusterIP for testing
+    local imds_service_ip
+    imds_service_ip=$(kubectl get service imds-mock -n spacelift-worker-controller-system --context kind-spacelift-poc -o jsonpath='{.spec.clusterIP}' 2>/dev/null)
     
-    if [ -z "$pod_name" ]; then
-        print_error "Could not find IMDS mock pod"
+    if [ -z "$imds_service_ip" ]; then
+        print_error "Could not get IMDS service ClusterIP"
         return 1
     fi
     
-    # Test the token endpoint
-    if kubectl exec -n spacelift-worker-controller-system --context kind-spacelift-poc "$pod_name" -- wget -qO- http://localhost/latest/api/token | grep -q "mock-token"; then
-        print_success "✓ IMDS token endpoint is working"
-    else
-        print_error "✗ IMDS token endpoint test failed"
-        return 1
-    fi
+    # Create a temporary test pod with curl
+    print_status "Creating temporary test pod..."
+    kubectl run imds-test --image=curlimages/curl --context kind-spacelift-poc --command -- sleep 10 >/dev/null 2>&1
     
-    # Test the credentials endpoint
-    if kubectl exec -n spacelift-worker-controller-system --context kind-spacelift-poc "$pod_name" -- wget -qO- http://localhost/latest/meta-data/iam/security-credentials/SpaceliftAdminRole | grep -q "AccessKeyId"; then
-        print_success "✓ IMDS credentials endpoint is working"
+    # Wait for test pod to be ready
+    if kubectl wait --for=condition=ready pod/imds-test --context kind-spacelift-poc --timeout=30s >/dev/null 2>&1; then
+        # Test the token endpoint
+        if kubectl exec imds-test --context kind-spacelift-poc -- curl -s "http://$imds_service_ip/latest/api/token" | grep -q "mock-token"; then
+            print_success "✓ IMDS token endpoint is working"
+        else
+            print_error "✗ IMDS token endpoint test failed"
+            kubectl delete pod imds-test --context kind-spacelift-poc >/dev/null 2>&1 || true
+            return 1
+        fi
+        
+        # Test the credentials endpoint
+        if kubectl exec imds-test --context kind-spacelift-poc -- curl -s "http://$imds_service_ip/latest/meta-data/iam/security-credentials/SpaceliftAdminRole" | grep -q "AccessKeyId"; then
+            print_success "✓ IMDS credentials endpoint is working"
+        else
+            print_error "✗ IMDS credentials endpoint test failed"
+            kubectl delete pod imds-test --context kind-spacelift-poc >/dev/null 2>&1 || true
+            return 1
+        fi
+        
+        # Clean up test pod
+        kubectl delete pod imds-test --context kind-spacelift-poc >/dev/null 2>&1 || true
     else
-        print_error "✗ IMDS credentials endpoint test failed"
+        print_error "Test pod failed to start"
+        kubectl delete pod imds-test --context kind-spacelift-poc >/dev/null 2>&1 || true
         return 1
     fi
     
