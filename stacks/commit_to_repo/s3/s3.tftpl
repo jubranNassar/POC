@@ -1,0 +1,10 @@
+module ${bucket_name} {
+  source = "github.com/thoughtbot/terraform-s3-bucket?ref=v0.4.0"
+
+  name = "${bucket_name}"
+  tags = { 
+    %{ for k, v in bucket_tags }
+    "${k}" = "${v}",
+    %{ endfor ~}
+  }
+}
