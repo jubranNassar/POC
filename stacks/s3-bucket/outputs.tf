@@ -32,3 +32,8 @@ output "bucket_url" {
   description = "URL of the S3 bucket (LocalStack format)"
   value       = "http://localhost:4566/${aws_s3_bucket.poc_bucket.bucket}"
 }
+
+output "sample_file_url" {
+  description = "URL of the S3 bucket (LocalStack format)"
+  value       = "http://localhost:4566/${aws_s3_bucket.poc_bucket.bucket}/${aws_s3_object.sample_file.key}"
+}
