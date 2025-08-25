@@ -1,23 +1,18 @@
 services:
   localstack:
     container_name: "spacelift-poc-localstack"
-    image: localstack/localstack:latest
+    image: localstack/localstack:4.4
     ports:
       - "127.0.0.1:4566:4566"            # LocalStack Gateway
       - "127.0.0.1:4510-4559:4510-4559"  # external services port range
     environment:
-      # Core LocalStack configuration
-      - DEBUG=0
-      - SERVICES=s3,lambda,dynamodb,apigateway,ec2,vpc,rds,iam,sts,cloudformation,logs,events
+      # Core LocalStack configuration  
+      - DEBUG=1
       - DOCKER_HOST=unix:///var/run/docker.sock
-      - HOST_TMP_FOLDER=${TMPDIR:-/tmp}/localstack
       # AWS configuration for easier testing
       - AWS_DEFAULT_REGION=us-east-1
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
-      # Enable additional features
-      - SKIP_INFRA_DOWNLOADS=0
-      - LAMBDA_EXECUTOR=docker-reuse
     volumes:
       - "./localstack-data:/var/lib/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
